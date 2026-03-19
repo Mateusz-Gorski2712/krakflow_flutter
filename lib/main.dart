@@ -10,8 +10,19 @@ class MyApp extends StatelessWidget {
         appBar: AppBar(
           title: Text("KrakFlow"),
         ),
-        body: Text("Hello"),
+        body: Center(
+          child: Column(
+            children: [
+              Text("Krakflow"),
+              Text("Organizacja Studiow"),
+              Text("Dzisiejsze Zadania")
+            ],
+          ),
+        )
       ),
     );
+
+
+
   }
 }
