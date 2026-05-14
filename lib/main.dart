@@ -1,8 +1,19 @@
 import 'package:flutter/material.dart';
 import 'task_repository.dart';
 import 'task_api_service.dart';
+import 'task_local_database.dart';
+import 'task_sync_service.dart';
+import 'package:hive_ce_flutter/hive_flutter.dart';
+import 'dart:math';
 
-void main() {
+
+void main() async{
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Hive.initFlutter();
+
+  await Hive.openBox("tasks");
+
   runApp(const MyApp());
 }
 
@@ -33,7 +44,34 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    tasksFuture = TaskApiService.fetchTasks();
+    tasksFuture = loadTasks();
+  }
+
+  Future<List<Task>> loadTasks() async {
+    await TaskSyncService.loadInitialDataIfNeeded();
+
+    return TaskLocalDatabase.getTasks();
+  }
+
+  Future addTask(Task task) async {
+    await TaskLocalDatabase.addTask(task);
+    setState(() {
+      tasksFuture = loadTasks();
+    });
+  }
+
+  Future deleteTask(int id) async {
+    await TaskLocalDatabase.deleteTask(id);
+    setState(() {
+      tasksFuture = loadTasks();
+    });
+  }
+
+  Future deleteAllTasks() async {
+    await TaskLocalDatabase.deleteAllTasks();
+    setState(() {
+      tasksFuture = loadTasks();
+    });
   }
 
   @override
@@ -42,6 +80,19 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("KrakFlow"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_sweep),
+            tooltip: "Usuń wszystkie zadania",
+            onPressed: () async {
+              await deleteAllTasks();
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Wyczyszczono listę zadań")),
+              );
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -152,10 +203,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
                         key: ValueKey(task.title),
 
-                        onDismissed: (direction) {
-                          setState(() {
-                            tasks.remove(task);
-                          });
+                        onDismissed: (direction) async {
+                          await deleteTask(task.id);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text("zadanie usuniete"),
@@ -215,7 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 
           if (newTask != null) {
-
+            await addTask(newTask);
           }
         },
         child: const Icon(Icons.add),
@@ -275,6 +324,7 @@ class EditTaskScreen extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: () {
                   final updatedTask = Task(
+                    id: task.id,
                     title: titleController.text,
                     deadline: deadlineController.text,
                     priority: priorityController.text,
@@ -339,6 +389,7 @@ class AddTaskScreen extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: () {
                   final newTask = Task(
+                    id: Random().nextInt(1000000),
                     title: titleController.text,
                     deadline: deadlineController.text,
                     priority: priorityController.text,
